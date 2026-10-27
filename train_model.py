@@ -23,7 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
-from sklearn.metrics import accuracy_score, f1_score, silhouette_score
+from sklearn.metrics import accuracy_score, f1_score, silhouette_score, confusion_matrix
 
 RANDOM_STATE = 42
 K = 5
@@ -106,6 +106,18 @@ metrics = {"cv_accuracy": float(cv["test_accuracy"].mean()), "cv_f1_macro": floa
            "silhouette": sil, "n_train": len(X_tr), "n_test": len(X_te)}
 print("Evaluasi klasifikasi:", {k: round(v, 3) if isinstance(v, float) else v for k, v in metrics.items()})
 
+conf = confusion_matrix(y_te, pred, labels=sorted(df["cluster"].unique()))
+
+# silhouette untuk beberapa nilai K (dipakai di dashboard aplikasi)
+k_scores = {}
+for k in range(2, 11):
+    lab = KMeans(n_clusters=k, n_init=10, random_state=RANDOM_STATE).fit_predict(Xc)
+    k_scores[k] = float(silhouette_score(Xc, lab))
+
+# data pelanggan + segmen (dipakai untuk grafik di aplikasi)
+data_seg = df[["customer_id", "gender", "age", "annual_income_k", "spending_score", "cluster"]].copy()
+data_seg["segmen"] = data_seg["cluster"].map(segment_names)
+
 # model akhir dilatih ulang pada seluruh data
 pipe = make_pipe().fit(X, y)
 
@@ -120,7 +132,8 @@ joblib.dump({"classifier": pipe, "NUM": NUM, "CAT": CAT, "metrics": metrics,
              "kmeans": km, "cl_scaler": cl_scaler, "cl_cols": cl_cols,
              "segment_names": segment_names, "segment_profile": segment_profile,
              "segment_advice": segment_advice, "options": options, "defaults": defaults,
-             "ranges": ranges, "sklearn_version": sklearn.__version__},
+             "ranges": ranges, "data": data_seg, "confusion": conf, "k_scores": k_scores,
+             "sklearn_version": sklearn.__version__},
             "model/mall_model.joblib", compress=3)
 print("Tersimpan: model/mall_model.joblib | scikit-learn", sklearn.__version__)
 print("Segmen:", {segment_names[c]: int(prof.loc[c, "jumlah"]) for c in prof.index})
