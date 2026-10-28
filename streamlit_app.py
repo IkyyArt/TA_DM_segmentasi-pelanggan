@@ -104,25 +104,58 @@ def fitur_1():
 
 
 # =========================================================== FITUR 2
+def arah(delta):
+    """Ubah selisih terhadap rata-rata menjadi kata yang mudah dibaca."""
+    a = abs(delta)
+    if a < 5:
+        return "mendekati rata-rata"
+    return ("jauh di atas" if a >= 20 else "di atas") + " rata-rata" if delta > 0 else \
+           ("jauh di bawah" if a >= 20 else "di bawah") + " rata-rata"
+
+
 def fitur_2():
     st.subheader("Saran Strategi Pemasaran")
     st.write("Pilih segmen untuk melihat profil, strategi, dan langkah konkret pemasarannya.")
 
     pilihan = st.selectbox("Segmen", [NAMES[c] for c in sorted(NAMES)])
     seg_id = [c for c in NAMES if NAMES[c] == pilihan][0]
+    p = PROFILE[seg_id]
 
-    tampilkan_profil(seg_id)
+    # rata-rata seluruh pelanggan dan selisih segmen terhadapnya (Δ = rata-rata segmen - rata-rata semua)
+    semua = {"usia": DATA["age"].mean(), "pendapatan": DATA["annual_income_k"].mean(),
+             "skor": DATA["spending_score"].mean()}
+    d = {"usia": p["usia_rata2"] - semua["usia"],
+         "pendapatan": p["pendapatan_rata2"] - semua["pendapatan"],
+         "skor": p["spending_rata2"] - semua["skor"]}
+
+    # ringkasan angka profil
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Pelanggan", f"{p['jumlah']:.0f}", f"{p['jumlah'] / len(DATA):.1%} dari total", delta_color="off")
+    c2.metric("Usia rata-rata", f"{p['usia_rata2']:.0f} th", f"{d['usia']:+.1f}", delta_color="off")
+    c3.metric("Pendapatan (ribu $)", f"{p['pendapatan_rata2']:.0f}", f"{d['pendapatan']:+.1f}", delta_color="off")
+    c4.metric("Spending score", f"{p['spending_rata2']:.0f}", f"{d['skor']:+.1f}", delta_color="off")
+    st.caption("Angka kecil di bawah tiap nilai adalah selisih terhadap rata-rata semua pelanggan.")
+
+    # strategi + dasar profil agar saran dapat ditelusuri
     st.info(ADVICE[seg_id])
+    st.write(f"**Dasar profil:** pendapatan {arah(d['pendapatan'])}, spending score {arah(d['skor'])}, "
+             f"usia {arah(d['usia'])}. Komposisi laki-laki {p.get('persen_laki', float('nan')):.0f}%.")
 
     st.write("**Langkah konkret:**")
     for langkah in LANGKAH.get(pilihan, ["Pantau perilaku belanja segmen ini."]):
         st.write(f"- {langkah}")
 
+    # posisi segmen pada peta pelanggan
+    peta = DATA[["annual_income_k", "spending_score"]].copy()
+    peta["Kelompok"] = ["Segmen terpilih" if s == pilihan else "Segmen lain" for s in DATA["segmen"]]
+    st.write("**Posisi segmen pada peta pelanggan**")
+    st.scatter_chart(peta, x="annual_income_k", y="spending_score", color="Kelompok")
+
     # perbandingan dengan rata-rata seluruh pelanggan
-    p = PROFILE[seg_id]
     banding = pd.DataFrame({
         "Segmen ini": [p["usia_rata2"], p["pendapatan_rata2"], p["spending_rata2"]],
-        "Semua pelanggan": [DATA["age"].mean(), DATA["annual_income_k"].mean(), DATA["spending_score"].mean()],
+        "Semua pelanggan": [semua["usia"], semua["pendapatan"], semua["skor"]],
+        "Selisih": [d["usia"], d["pendapatan"], d["skor"]],
     }, index=["Usia", "Pendapatan (ribu $)", "Spending score"]).round(1)
     st.write("**Perbandingan dengan rata-rata semua pelanggan:**")
     st.dataframe(banding)
